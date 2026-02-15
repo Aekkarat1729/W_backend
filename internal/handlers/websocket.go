@@ -114,7 +114,7 @@ func HandleWebSocket(gm *game.GameManager) gin.HandlerFunc {
 		room, exists := gm.GetRoom(roomCode)
 		if exists {
 			sendToClient(client, models.EventGameStateUpdate, room)
-			
+
 			// Broadcast player joined event to all clients in the room
 			broadcastToRoom(roomCode, models.EventPlayerJoined, room)
 		}
@@ -167,7 +167,7 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 			sendError(client, err.Error())
 			return
 		}
-		
+
 		room, _ := gm.GetRoom(client.RoomCode)
 		broadcastToRoom(client.RoomCode, models.EventGameStarted, room)
 
@@ -189,7 +189,7 @@ func broadcastToRoom(roomCode, eventType string, payload interface{}) {
 		Type:    eventType,
 		Payload: payload,
 	}
-	
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("JSON marshal error: %v", err)
@@ -207,13 +207,13 @@ func sendError(client *Client, errMsg string) {
 		Type:    models.EventError,
 		Payload: map[string]string{"error": errMsg},
 	}
-	
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("JSON marshal error: %v", err)
 		return
 	}
-	
+
 	client.Send <- data
 }
 
@@ -222,16 +222,12 @@ func sendToClient(client *Client, eventType string, payload interface{}) {
 		Type:    eventType,
 		Payload: payload,
 	}
-	
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("JSON marshal error: %v", err)
 		return
 	}
-	
-	client.Send <- data
-}
-	
-	data, _ := json.Marshal(msg)
+
 	client.Send <- data
 }
