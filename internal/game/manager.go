@@ -404,7 +404,7 @@ func (gm *GameManager) MoveToNextPhase(code string) (*NightResult, error) {
 			room.PhaseEndTime = nil
 			return nil, nil
 		}
-		
+
 		// Check game end after vote
 		isEnded, winner := gm.checkGameEndLocked(room)
 		if isEnded {
@@ -412,7 +412,7 @@ func (gm *GameManager) MoveToNextPhase(code string) (*NightResult, error) {
 			room.WinningTeam = winner
 			return nil, nil
 		}
-		
+
 		// Voting -> Night
 		room.Phase = models.PhaseNight
 		room.PhaseEndTime = nil
@@ -422,8 +422,12 @@ func (gm *GameManager) MoveToNextPhase(code string) (*NightResult, error) {
 			player.HasActedThisNight = false
 		}
 		room.NightActionsCompleted = make(map[string]bool)
-		
+
 		// Set up night action order: Hunter -> Tiger/AlphaTiger -> Shaman
+		room.NightActionOrder = gm.getNightActionOrder(room)
+		if len(room.NightActionOrder) > 0 {
+			room.CurrentNightRole = room.NightActionOrder[0]
+		} else {
 			room.CurrentNightRole = ""
 		}
 
@@ -514,13 +518,13 @@ func (gm *GameManager) processVotes(room *models.GameRoom) {
 		player := room.Players[eliminatedID]
 		if player != nil {
 			player.IsAlive = false
-			
+
 			// Check if eliminated player is hunter
 			if player.Role == models.RoleHunter && player.CanShoot {
 				room.WaitingHunterShoot = true
 				room.DeadHunterID = eliminatedID
 			}
-			
+
 			// Check if cursed player is voted out (instant death for cursed)
 			if player.IsCursed {
 				// Already dead, no special action needed
@@ -640,7 +644,7 @@ func (gm *GameManager) HunterShoot(code, hunterID, targetID string) error {
 
 	// Kill target
 	target.IsAlive = false
-	
+
 	// Reset waiting state
 	room.WaitingHunterShoot = false
 	room.DeadHunterID = ""
