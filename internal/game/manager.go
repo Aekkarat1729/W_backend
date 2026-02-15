@@ -135,9 +135,10 @@ func (gm *GameManager) StartGame(code string) error {
 	// Start game
 	now := time.Now()
 	room.StartedAt = &now
-	room.Phase = models.PhaseNight
-	room.Round = 0          // เริ่มจากรอบ 0 (คืนเริ่มเกม)
-	room.PhaseEndTime = nil // No timer for night phase
+	room.Phase = models.PhaseDay // เริ่มที่เช้าเลย
+	room.Round = 1               // เริ่มรอบ 1
+	endTime := now.Add(2 * time.Minute)
+	room.PhaseEndTime = &endTime // ตั้งเวลา 2 นาทีสำหรับเฟสกลางวัน
 
 	// Initialize night actions tracking
 	for _, player := range room.Players {
