@@ -110,6 +110,15 @@ func HandleWebSocket(gm *game.GameManager) gin.HandlerFunc {
 
 		hub.Register <- client
 
+		// Send current room state to the newly connected client
+		room, exists := gm.GetRoom(roomCode)
+		if exists {
+			sendToClient(client, models.EventGameStateUpdate, room)
+			
+			// Broadcast player joined event to all clients in the room
+			broadcastToRoom(roomCode, models.EventPlayerJoined, room)
+		}
+
 		go client.WritePump()
 		go client.ReadPump(gm)
 	}
@@ -198,6 +207,30 @@ func sendError(client *Client, errMsg string) {
 		Type:    models.EventError,
 		Payload: map[string]string{"error": errMsg},
 	}
+	
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("JSON marshal error: %v", err)
+		return
+	}
+	
+	client.Send <- data
+}
+
+func sendToClient(client *Client, eventType string, payload interface{}) {
+	msg := models.WSMessage{
+		Type:    eventType,
+		Payload: payload,
+	}
+	
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("JSON marshal error: %v", err)
+		return
+	}
+	
+	client.Send <- data
+}
 	
 	data, _ := json.Marshal(msg)
 	client.Send <- data
