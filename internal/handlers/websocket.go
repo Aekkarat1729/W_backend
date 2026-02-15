@@ -191,16 +191,31 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 		broadcastToRoom(client.RoomCode, models.EventPhaseChanged, payload)
 
 	case models.EventSkipAction:
+		room, _ := gm.GetRoom(client.RoomCode)
+		player := room.Players[client.ID]
+
+		// Validate it's this player's turn
+		if room.CurrentNightRole != player.Role {
+			sendError(client, "not your turn")
+			return
+		}
+
 		if err := gm.MarkNightActionComplete(client.RoomCode, client.ID); err != nil {
 			sendError(client, err.Error())
 			return
 		}
 
-		room, _ := gm.GetRoom(client.RoomCode)
+		// Move to next role
+		allDone, err := gm.MoveToNextNightRole(client.RoomCode)
+		if err != nil {
+			sendError(client, err.Error())
+			return
+		}
 
-		// Check if all night actions are complete
-		if gm.CheckAllNightActionsComplete(client.RoomCode) {
-			// All players have acted or skipped, move to next phase
+		room, _ = gm.GetRoom(client.RoomCode)
+
+		if allDone {
+			// All roles have acted or skipped, move to next phase
 			nightResult, err := gm.MoveToNextPhase(client.RoomCode)
 			if err != nil {
 				sendError(client, err.Error())
@@ -218,25 +233,200 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 
 			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, payload)
 		} else {
-			broadcastToRoom(client.RoomCode, models.EventGameStateUpdate, room)
+			// Broadcast role change
+			broadcastToRoom(client.RoomCode, models.EventNightRoleChange, room)
 		}
 
 	case models.EventChatMessage:
 		broadcastToRoom(client.RoomCode, models.EventChatMessage, msg.Payload)
 
 	case models.EventVote:
-		// Handle voting logic
-		broadcastToRoom(client.RoomCode, models.EventVote, msg.Payload)
+		// Parse vote payload
+		var voteData map[string]string
+		payloadBytes, _ := json.Marshal(msg.Payload)
+		json.Unmarshal(payloadBytes, &voteData)
+
+		targetID := voteData["targetId"]
+		if targetID == "" {
+			sendError(client, "invalid vote target")
+			return
+		}
+
+		// Record vote
+		if err := gm.Vote(client.RoomCode, client.ID, targetID); err != nil {
+			sendError(client, err.Error())
+			return
+		}
+
+		// Broadcast updated room state with vote info
+		room, _ := gm.GetRoom(client.RoomCode)
+		broadcastToRoom(client.RoomCode, models.EventVoteUpdate, room)
+
+	case models.EventHunterShoot:
+		// Parse shoot payload
+		var shootData map[string]string
+		payloadBytes, _ := json.Marshal(msg.Payload)
+		json.Unmarshal(payloadBytes, &shootData)
+
+		targetID := shootData["targetId"]
+		if targetID == "" {
+			sendError(client, "invalid shoot target")
+			return
+		}
+
+		// Execute hunter shoot
+		if err := gm.HunterShoot(client.RoomCode, client.ID, targetID); err != nil {
+			sendError(client, err.Error())
+			return
+		}
+
+		room, _ := gm.GetRoom(client.RoomCode)
+
+		// Check game end after hunter shoot
+		isEnded, winner := gm.CheckGameEnd(client.RoomCode)
+		if isEnded {
+			room.Phase = models.PhaseEnded
+			room.WinningTeam = winner
+			broadcastToRoom(client.RoomCode, models.EventGameEnded, room)
+			return
+		}
+
+		// Continue to next phase
+		broadcastToRoom(client.RoomCode, models.EventGameStateUpdate, room)
+
+	case models.EventCurseAction:
+		// Parse curse payload
+		var curseData map[string]string
+		payloadBytes, _ := json.Marshal(msg.Payload)
+		json.Unmarshal(payloadBytes, &curseData)
+
+		targetID := curseData["targetId"]
+		if targetID == "" {
+			sendError(client, "invalid curse target")
+			return
+		}
+
+		room, _ := gm.GetRoom(client.RoomCode)
+		player := room.Players[client.ID]
+
+		// Validate it's alpha tiger
+		if player.Role != models.RoleAlphaTiger {
+			sendError(client, "only alpha tiger can curse")
+			return
+		}
+
+		if player.HasUsedCurse {
+			sendError(client, "curse already used")
+			return
+		}
+
+		// Apply curse
+		target := room.Players[targetID]
+		if target != nil && target.IsAlive {
+			target.IsCursed = true
+			player.HasUsedCurse = true
+			room.CursedPlayer = targetID
+		}
+
+		// Mark night action complete
+		gm.MarkNightActionComplete(client.RoomCode, client.ID)
+
+		// Move to next role
+		allDone, err := gm.MoveToNextNightRole(client.RoomCode)
+		if err != nil {
+			sendError(client, err.Error())
+			return
+		}
+
+		room, _ = gm.GetRoom(client.RoomCode)
+
+		if allDone {
+			// All roles have acted, move to next phase
+			nightResult, err := gm.MoveToNextPhase(client.RoomCode)
+			if err != nil {
+				sendError(client, err.Error())
+				return
+			}
+
+			room, _ = gm.GetRoom(client.RoomCode)
+			payload := map[string]interface{}{
+				"message": "All night actions completed",
+				"room":    room,
+			}
+			if nightResult != nil {
+				payload["nightResult"] = nightResult
+			}
+
+			// Check game end after night phase
+			isEnded, winner := gm.CheckGameEnd(client.RoomCode)
+			if isEnded {
+				room.Phase = models.PhaseEnded
+				room.WinningTeam = winner
+				broadcastToRoom(client.RoomCode, models.EventGameEnded, room)
+				return
+			}
+
+			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, payload)
+		} else {
+			// Broadcast role change
+			broadcastToRoom(client.RoomCode, models.EventNightRoleChange, room)
+		}
 
 	case models.EventNightAction:
+		// Parse night action payload
+		var actionData map[string]string
+		payloadBytes, _ := json.Marshal(msg.Payload)
+		json.Unmarshal(payloadBytes, &actionData)
+
+		targetID := actionData["targetId"]
+		if targetID == "" {
+			sendError(client, "invalid action target")
+			return
+		}
+
+		room, _ := gm.GetRoom(client.RoomCode)
+		player := room.Players[client.ID]
+
+		// Validate it's this player's turn
+		if room.CurrentNightRole != player.Role {
+			sendError(client, "not your turn")
+			return
+		}
+
+		// Record the action based on role
+		switch player.Role {
+		case models.RoleShaman:
+			room.ShamanVision = targetID
+		case models.RoleHunter:
+			// ห้ามกันคนเดิม 2 คืนซ้อน
+			if player.LastProtected == targetID {
+				sendError(client, "cannot protect same player twice in a row")
+				return
+			}
+			room.HunterProtection = targetID
+			player.LastProtected = targetID
+		case models.RoleTiger:
+			room.TigerTarget = targetID
+		case models.RoleAlphaTiger:
+			// Alpha tiger can choose to kill or curse
+			// For now, just set as target
+			room.TigerTarget = targetID
+		}
+
 		// Mark that this player has acted
 		gm.MarkNightActionComplete(client.RoomCode, client.ID)
 
-		// Handle night action logic
-		room, _ := gm.GetRoom(client.RoomCode)
+		// Move to next role
+		allDone, err := gm.MoveToNextNightRole(client.RoomCode)
+		if err != nil {
+			sendError(client, err.Error())
+			return
+		}
 
-		// Check if all night actions are complete
-		if gm.CheckAllNightActionsComplete(client.RoomCode) {
+		room, _ = gm.GetRoom(client.RoomCode)
+
+		if allDone {
+			// All roles have acted, move to next phase
 			nightResult, err := gm.MoveToNextPhase(client.RoomCode)
 			if err != nil {
 				sendError(client, err.Error())
@@ -254,7 +444,8 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 
 			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, payload)
 		} else {
-			broadcastToRoom(client.RoomCode, models.EventNightAction, msg.Payload)
+			// Broadcast role change
+			broadcastToRoom(client.RoomCode, models.EventNightRoleChange, room)
 		}
 	}
 }

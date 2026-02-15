@@ -36,6 +36,7 @@ type Player struct {
 	CanShoot          bool      `json:"canShoot,omitempty"`          // นายพรานสามารถยิงได้
 	LastProtected     string    `json:"lastProtected,omitempty"`     // ID ของคนที่กันไปคืนก่อน
 	HasActedThisNight bool      `json:"hasActedThisNight,omitempty"` // ใช้ความสามารถในคืนนี้แล้ว
+	VotedFor          string    `json:"votedFor,omitempty"`          // ID ของคนที่โหวต (ใน voting phase)
 	RoomCode          string    `json:"roomCode"`
 	JoinedAt          time.Time `json:"joinedAt"`
 }
@@ -59,6 +60,11 @@ type GameRoom struct {
 	PhaseEndTime          *time.Time         `json:"phaseEndTime,omitempty"`          // เวลาสิ้นสุดเฟส
 	NightActionsCompleted map[string]bool    `json:"nightActionsCompleted,omitempty"` // ผู้เล่นที่ใช้พลังหรือข้ามแล้วในคืนนี้
 	NightActionsRequired  int                `json:"nightActionsRequired,omitempty"`  // จำนวนผู้เล่นที่ต้องใช้พลังในคืนนี้
+	CurrentNightRole      Role               `json:"currentNightRole,omitempty"`      // Role ที่กำลัง action ในคืนนี้
+	NightActionOrder      []Role             `json:"nightActionOrder,omitempty"`      // ลำดับการ action ในคืน
+	WaitingHunterShoot    bool               `json:"waitingHunterShoot,omitempty"`    // รอนายพรานยิงหรือไม่
+	DeadHunterID          string             `json:"deadHunterID,omitempty"`          // ID ของนายพรานที่ตายและรอยิง
+	WinningTeam           string             `json:"winningTeam,omitempty"`           // "human" หรือ "tiger"
 }
 
 // Message represents a chat message
@@ -91,10 +97,14 @@ const (
 	EventSkipAction      = "skip_action" // ข้ามการใช้พลัง
 	EventSkipPhase       = "skip_phase"  // ข้ามเฟส (host only)
 	EventVote            = "vote"
+	EventVoteUpdate      = "vote_update" // real-time vote update
 	EventVoteResult      = "vote_result"
 	EventPlayerDied      = "player_died"
 	EventGameEnded       = "game_ended"
 	EventChatMessage     = "chat_message"
 	EventGameStateUpdate = "game_state_update"
+	EventNightRoleChange = "night_role_change" // เปลี่ยน role ที่กำลัง action
+	EventHunterShoot     = "hunter_shoot"      // นายพรานยิงเมื่อตาย
+	EventCurseAction     = "curse_action"      // พญาสมิงสาป
 	EventError           = "error"
 )
