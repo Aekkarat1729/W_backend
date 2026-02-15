@@ -171,6 +171,34 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 		room, _ := gm.GetRoom(client.RoomCode)
 		broadcastToRoom(client.RoomCode, models.EventGameStarted, room)
 
+	case models.EventSkipPhase:
+		if err := gm.MoveToNextPhase(client.RoomCode); err != nil {
+			sendError(client, err.Error())
+			return
+		}
+
+		room, _ := gm.GetRoom(client.RoomCode)
+		broadcastToRoom(client.RoomCode, models.EventPhaseChanged, room)
+
+	case models.EventSkipAction:
+		if err := gm.MarkNightActionComplete(client.RoomCode, client.ID); err != nil {
+			sendError(client, err.Error())
+			return
+		}
+
+		room, _ := gm.GetRoom(client.RoomCode)
+
+		// Check if all night actions are complete
+		if gm.CheckAllNightActionsComplete(client.RoomCode) {
+			// All players have acted or skipped, can move to next phase
+			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, map[string]interface{}{
+				"message": "All night actions completed",
+				"room":    room,
+			})
+		} else {
+			broadcastToRoom(client.RoomCode, models.EventGameStateUpdate, room)
+		}
+
 	case models.EventChatMessage:
 		broadcastToRoom(client.RoomCode, models.EventChatMessage, msg.Payload)
 
@@ -179,8 +207,21 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 		broadcastToRoom(client.RoomCode, models.EventVote, msg.Payload)
 
 	case models.EventNightAction:
+		// Mark that this player has acted
+		gm.MarkNightActionComplete(client.RoomCode, client.ID)
+
 		// Handle night action logic
-		broadcastToRoom(client.RoomCode, models.EventNightAction, msg.Payload)
+		room, _ := gm.GetRoom(client.RoomCode)
+
+		// Check if all night actions are complete
+		if gm.CheckAllNightActionsComplete(client.RoomCode) {
+			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, map[string]interface{}{
+				"message": "All night actions completed",
+				"room":    room,
+			})
+		} else {
+			broadcastToRoom(client.RoomCode, models.EventNightAction, msg.Payload)
+		}
 	}
 }
 

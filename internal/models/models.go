@@ -26,36 +26,39 @@ const (
 
 // Player represents a player in the game
 type Player struct {
-	ID            string    `json:"id"`
-	Username      string    `json:"username"`
-	Role          Role      `json:"role,omitempty"` // Hidden from other players
-	IsAlive       bool      `json:"isAlive"`
-	IsReady       bool      `json:"isReady"`
-	IsCursed      bool      `json:"isCursed,omitempty"`      // ถูกสาปโดยพญาสมิง
-	HasUsedCurse  bool      `json:"hasUsedCurse,omitempty"`  // พญาสมิงใช้สาปแล้ว
-	CanShoot      bool      `json:"canShoot,omitempty"`      // นายพรานสามารถยิงได้
-	LastProtected string    `json:"lastProtected,omitempty"` // ID ของคนที่กันไปคืนก่อน
-	RoomCode      string    `json:"roomCode"`
-	JoinedAt      time.Time `json:"joinedAt"`
+	ID                string    `json:"id"`
+	Username          string    `json:"username"`
+	Role              Role      `json:"role,omitempty"` // Hidden from other players
+	IsAlive           bool      `json:"isAlive"`
+	IsReady           bool      `json:"isReady"`
+	IsCursed          bool      `json:"isCursed,omitempty"`          // ถูกสาปโดยพญาสมิง
+	HasUsedCurse      bool      `json:"hasUsedCurse,omitempty"`      // พญาสมิงใช้สาปแล้ว
+	CanShoot          bool      `json:"canShoot,omitempty"`          // นายพรานสามารถยิงได้
+	LastProtected     string    `json:"lastProtected,omitempty"`     // ID ของคนที่กันไปคืนก่อน
+	HasActedThisNight bool      `json:"hasActedThisNight,omitempty"` // ใช้ความสามารถในคืนนี้แล้ว
+	RoomCode          string    `json:"roomCode"`
+	JoinedAt          time.Time `json:"joinedAt"`
 }
 
 // GameRoom represents a game room
 type GameRoom struct {
-	Code             string             `json:"code"`
-	HostID           string             `json:"hostId"`
-	Players          map[string]*Player `json:"players"`
-	Phase            GamePhase          `json:"phase"`
-	Round            int                `json:"round"`
-	MaxPlayers       int                `json:"maxPlayers"`
-	CreatedAt        time.Time          `json:"createdAt"`
-	StartedAt        *time.Time         `json:"startedAt,omitempty"`
-	VoteResults      map[string]int     `json:"voteResults,omitempty"`
-	HunterProtection string             `json:"hunterProtection,omitempty"` // ID ของคนที่นายพรานกัน
-	TigerTarget      string             `json:"tigerTarget,omitempty"`      // ID ของเหยื่อที่เสือเลือก
-	ShamanVision     string             `json:"shamanVision,omitempty"`     // ID ของคนที่หมอผีส่อง
-	KilledTonight    string             `json:"killedTonight,omitempty"`    // ID ของคนที่ตายคืนนี้
-	CursedPlayer     string             `json:"cursedPlayer,omitempty"`     // ID ของคนที่ถูกสาป
-	PhaseEndTime     *time.Time         `json:"phaseEndTime,omitempty"`     // เวลาสิ้นสุดเฟส
+	Code                  string             `json:"code"`
+	HostID                string             `json:"hostId"`
+	Players               map[string]*Player `json:"players"`
+	Phase                 GamePhase          `json:"phase"`
+	Round                 int                `json:"round"`
+	MaxPlayers            int                `json:"maxPlayers"`
+	CreatedAt             time.Time          `json:"createdAt"`
+	StartedAt             *time.Time         `json:"startedAt,omitempty"`
+	VoteResults           map[string]int     `json:"voteResults,omitempty"`
+	HunterProtection      string             `json:"hunterProtection,omitempty"`      // ID ของคนที่นายพรานกัน
+	TigerTarget           string             `json:"tigerTarget,omitempty"`           // ID ของเหยื่อที่เสือเลือก
+	ShamanVision          string             `json:"shamanVision,omitempty"`          // ID ของคนที่หมอผีส่อง
+	KilledTonight         string             `json:"killedTonight,omitempty"`         // ID ของคนที่ตายคืนนี้
+	CursedPlayer          string             `json:"cursedPlayer,omitempty"`          // ID ของคนที่ถูกสาป
+	PhaseEndTime          *time.Time         `json:"phaseEndTime,omitempty"`          // เวลาสิ้นสุดเฟส
+	NightActionsCompleted map[string]bool    `json:"nightActionsCompleted,omitempty"` // ผู้เล่นที่ใช้พลังหรือข้ามแล้วในคืนนี้
+	NightActionsRequired  int                `json:"nightActionsRequired,omitempty"`  // จำนวนผู้เล่นที่ต้องใช้พลังในคืนนี้
 }
 
 // Message represents a chat message
@@ -85,6 +88,8 @@ const (
 	EventGameStarted     = "game_started"
 	EventPhaseChanged    = "phase_changed"
 	EventNightAction     = "night_action"
+	EventSkipAction      = "skip_action" // ข้ามการใช้พลัง
+	EventSkipPhase       = "skip_phase"  // ข้ามเฟส (host only)
 	EventVote            = "vote"
 	EventVoteResult      = "vote_result"
 	EventPlayerDied      = "player_died"

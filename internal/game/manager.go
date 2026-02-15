@@ -125,7 +125,7 @@ func (gm *GameManager) StartGame(code string) error {
 		return ErrRoomNotFound
 	}
 
-	if len(room.Players) < 4 {
+	if len(room.Players) < 5 {
 		return ErrNotEnoughPlayers
 	}
 
@@ -136,7 +136,14 @@ func (gm *GameManager) StartGame(code string) error {
 	now := time.Now()
 	room.StartedAt = &now
 	room.Phase = models.PhaseNight
-	room.Round = 1
+	room.Round = 0          // เริ่มจากรอบ 0 (คืนเริ่มเกม)
+	room.PhaseEndTime = nil // No timer for night phase
+
+	// Initialize night actions tracking
+	for _, player := range room.Players {
+		player.HasActedThisNight = false
+	}
+	room.NightActionsCompleted = make(map[string]bool)
 
 	return nil
 }
@@ -145,30 +152,27 @@ func (gm *GameManager) StartGame(code string) error {
 func assignRoles(room *models.GameRoom) {
 	playerCount := len(room.Players)
 
-	// Calculate role distribution
-	// 4-5 players: 1 Alpha Tiger, 1 Tiger
-	// 6-7 players: 1 Alpha Tiger, 2 Tigers
-	// 8-10 players: 1 Alpha Tiger, 2 Tigers
-	tigerCount := 1
-	if playerCount >= 6 {
-		tigerCount = 2
-	}
+	// Calculate role distribution based on player count
+	// 5 คน: เสือ 1, ชาวบ้าน 2, พราน 1, หมอผี 1
+	// 6 คน: เสือ 1, ชาวบ้าน 3, พราน 1, หมอผี 1
+	// 7+ คน: เสือ 1, พญาสมิง 1, ชาวบ้าน (เหลือ), พราน 1, หมอผี 1
 
 	roles := make([]models.Role, 0, playerCount)
 
-	// Add Alpha Tiger (พญาสมิง) - always 1
-	roles = append(roles, models.RoleAlphaTiger)
-
-	// Add Tigers (เสือสมิง)
-	for i := 0; i < tigerCount; i++ {
-		roles = append(roles, models.RoleTiger)
+	if playerCount >= 7 {
+		// 7+ คน: มีพญาสมิง
+		roles = append(roles, models.RoleAlphaTiger) // พญาสมิง
+		roles = append(roles, models.RoleTiger)      // เสือสมิง
+	} else {
+		// 5-6 คน: มีแค่เสือสมิง (ไม่มีพญาสมิง)
+		roles = append(roles, models.RoleTiger) // เสือสมิง
 	}
 
-	// Add special roles (always have if enough players)
-	roles = append(roles, models.RoleShaman) // หมอผี
+	// เพิ่มบทบาทพิเศษ (มีเสมอ)
 	roles = append(roles, models.RoleHunter) // นายพราน
+	roles = append(roles, models.RoleShaman) // หมอผี
 
-	// Fill remaining with villagers
+	// เติมที่เหลือด้วยชาวบ้าน
 	for len(roles) < playerCount {
 		roles = append(roles, models.RoleVillager)
 	}
@@ -194,6 +198,182 @@ func assignRoles(room *models.GameRoom) {
 func generateRoomCode() string {
 	code := uuid.New().String()[:6]
 	return strings.ToUpper(code)
+}
+
+// SkipPhase allows host to skip current phase
+func (gm *GameManager) SkipPhase(code, playerID string) error {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	code = strings.ToUpper(code)
+	room, exists := gm.Rooms[code]
+	if !exists {
+		return ErrRoomNotFound
+	}
+
+	if room.HostID != playerID {
+		return &GameError{"only host can skip phase"}
+	}
+
+	// Clear phase end time
+	room.PhaseEndTime = nil
+
+	return nil
+}
+
+// MarkNightActionComplete marks a player as having completed their night action
+func (gm *GameManager) MarkNightActionComplete(code, playerID string) error {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	code = strings.ToUpper(code)
+	room, exists := gm.Rooms[code]
+	if !exists {
+		return ErrRoomNotFound
+	}
+
+	player := room.Players[playerID]
+	if player == nil {
+		return &GameError{"player not found"}
+	}
+
+	// Mark as acted
+	player.HasActedThisNight = true
+
+	// Initialize map if nil
+	if room.NightActionsCompleted == nil {
+		room.NightActionsCompleted = make(map[string]bool)
+	}
+
+	room.NightActionsCompleted[playerID] = true
+
+	return nil
+}
+
+// CheckAllNightActionsComplete checks if all required night actions are complete
+func (gm *GameManager) CheckAllNightActionsComplete(code string) bool {
+	gm.mu.RLock()
+	defer gm.mu.RUnlock()
+
+	code = strings.ToUpper(code)
+	room, exists := gm.Rooms[code]
+	if !exists {
+		return false
+	}
+
+	// Count players with night actions
+	required := 0
+	for _, player := range room.Players {
+		if !player.IsAlive {
+			continue
+		}
+		// Only count players with night abilities
+		if player.Role == models.RoleTiger || player.Role == models.RoleAlphaTiger ||
+			player.Role == models.RoleHunter || player.Role == models.RoleShaman {
+			required++
+		}
+	}
+
+	room.NightActionsRequired = required
+
+	// Check if all have acted
+	completed := len(room.NightActionsCompleted)
+	return completed >= required
+}
+
+// StartDayPhase sets up the day phase with 2-minute timer
+func (gm *GameManager) StartDayPhase(code string) error {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	code = strings.ToUpper(code)
+	room, exists := gm.Rooms[code]
+	if !exists {
+		return ErrRoomNotFound
+	}
+
+	room.Phase = models.PhaseDay
+	endTime := time.Now().Add(2 * time.Minute)
+	room.PhaseEndTime = &endTime
+
+	// Reset night actions tracking
+	for _, player := range room.Players {
+		player.HasActedThisNight = false
+	}
+	room.NightActionsCompleted = make(map[string]bool)
+
+	return nil
+}
+
+// StartNightPhase sets up the night phase (no timer)
+func (gm *GameManager) StartNightPhase(code string) error {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	code = strings.ToUpper(code)
+	room, exists := gm.Rooms[code]
+	if !exists {
+		return ErrRoomNotFound
+	}
+
+	room.Phase = models.PhaseNight
+	room.PhaseEndTime = nil // No timer for night phase
+
+	// Reset night actions tracking
+	for _, player := range room.Players {
+		player.HasActedThisNight = false
+	}
+	room.NightActionsCompleted = make(map[string]bool)
+
+	return nil
+}
+
+// MoveToNextPhase transitions the game to the next phase
+func (gm *GameManager) MoveToNextPhase(code string) error {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+
+	code = strings.ToUpper(code)
+	room, exists := gm.Rooms[code]
+	if !exists {
+		return ErrRoomNotFound
+	}
+
+	switch room.Phase {
+	case models.PhaseNight:
+		// Night -> Day
+		room.Phase = models.PhaseDay
+		endTime := time.Now().Add(2 * time.Minute)
+		room.PhaseEndTime = &endTime
+		room.Round++ // Increment round when day starts
+
+		// Reset night actions tracking
+		for _, player := range room.Players {
+			player.HasActedThisNight = false
+		}
+		room.NightActionsCompleted = make(map[string]bool)
+
+	case models.PhaseDay:
+		// Day -> Voting
+		room.Phase = models.PhaseVoting
+		room.PhaseEndTime = nil
+
+	case models.PhaseVoting:
+		// Voting -> Night
+		room.Phase = models.PhaseNight
+		room.PhaseEndTime = nil
+
+		// Reset night actions tracking
+		for _, player := range room.Players {
+			player.HasActedThisNight = false
+		}
+		room.NightActionsCompleted = make(map[string]bool)
+
+	default:
+		return &GameError{"invalid phase transition"}
+	}
+
+	return nil
 }
 
 // Custom errors
