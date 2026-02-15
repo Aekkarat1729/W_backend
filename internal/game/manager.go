@@ -497,6 +497,36 @@ func (gm *GameManager) Vote(code, playerID, targetID string) error {
 	return nil
 }
 
+// CheckAllVoted checks if all alive players have voted
+func (gm *GameManager) CheckAllVoted(code string) bool {
+	gm.mu.RLock()
+	defer gm.mu.RUnlock()
+
+	code = strings.ToUpper(code)
+	room, exists := gm.Rooms[code]
+	if !exists {
+		return false
+	}
+
+	if room.Phase != models.PhaseVoting {
+		return false
+	}
+
+	// Count alive players and voted players
+	aliveCount := 0
+	votedCount := 0
+	for _, player := range room.Players {
+		if player.IsAlive {
+			aliveCount++
+			if player.VotedFor != "" {
+				votedCount++
+			}
+		}
+	}
+
+	return aliveCount > 0 && aliveCount == votedCount
+}
+
 // processVotes processes voting results and eliminates the player with most votes
 func (gm *GameManager) processVotes(room *models.GameRoom) {
 	if len(room.VoteResults) == 0 {

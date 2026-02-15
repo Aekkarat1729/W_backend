@@ -262,6 +262,32 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 		room, _ := gm.GetRoom(client.RoomCode)
 		broadcastToRoom(client.RoomCode, models.EventVoteUpdate, room)
 
+		// Check if all players have voted
+		if gm.CheckAllVoted(client.RoomCode) {
+			// Broadcast voting complete - start 5 second countdown
+			broadcastToRoom(client.RoomCode, models.EventVotingComplete, room)
+		}
+
+	case models.EventVoteResult:
+		// Process votes after countdown
+		nightResult, err := gm.MoveToNextPhase(client.RoomCode)
+		if err != nil {
+			sendError(client, err.Error())
+			return
+		}
+
+		room, _ := gm.GetRoom(client.RoomCode)
+
+		// Include night result if transitioning from night to day
+		payload := map[string]interface{}{
+			"room": room,
+		}
+		if nightResult != nil {
+			payload["nightResult"] = nightResult
+		}
+
+		broadcastToRoom(client.RoomCode, models.EventPhaseChanged, payload)
+
 	case models.EventHunterShoot:
 		// Parse shoot payload
 		var shootData map[string]string

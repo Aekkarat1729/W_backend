@@ -97,7 +97,8 @@ const (
 	EventSkipAction      = "skip_action" // ข้ามการใช้พลัง
 	EventSkipPhase       = "skip_phase"  // ข้ามเฟส (host only)
 	EventVote            = "vote"
-	EventVoteUpdate      = "vote_update" // real-time vote update
+	EventVoteUpdate      = "vote_update"     // real-time vote update
+	EventVotingComplete  = "voting_complete" // โหวตครบทุกคนแล้ว
 	EventVoteResult      = "vote_result"
 	EventPlayerDied      = "player_died"
 	EventGameEnded       = "game_ended"
