@@ -172,13 +172,23 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 		broadcastToRoom(client.RoomCode, models.EventGameStarted, room)
 
 	case models.EventSkipPhase:
-		if err := gm.MoveToNextPhase(client.RoomCode); err != nil {
+		nightResult, err := gm.MoveToNextPhase(client.RoomCode)
+		if err != nil {
 			sendError(client, err.Error())
 			return
 		}
 
 		room, _ := gm.GetRoom(client.RoomCode)
-		broadcastToRoom(client.RoomCode, models.EventPhaseChanged, room)
+
+		// Include night result if transitioning from night to day
+		payload := map[string]interface{}{
+			"room": room,
+		}
+		if nightResult != nil {
+			payload["nightResult"] = nightResult
+		}
+
+		broadcastToRoom(client.RoomCode, models.EventPhaseChanged, payload)
 
 	case models.EventSkipAction:
 		if err := gm.MarkNightActionComplete(client.RoomCode, client.ID); err != nil {
@@ -190,11 +200,23 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 
 		// Check if all night actions are complete
 		if gm.CheckAllNightActionsComplete(client.RoomCode) {
-			// All players have acted or skipped, can move to next phase
-			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, map[string]interface{}{
+			// All players have acted or skipped, move to next phase
+			nightResult, err := gm.MoveToNextPhase(client.RoomCode)
+			if err != nil {
+				sendError(client, err.Error())
+				return
+			}
+
+			room, _ = gm.GetRoom(client.RoomCode)
+			payload := map[string]interface{}{
 				"message": "All night actions completed",
 				"room":    room,
-			})
+			}
+			if nightResult != nil {
+				payload["nightResult"] = nightResult
+			}
+
+			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, payload)
 		} else {
 			broadcastToRoom(client.RoomCode, models.EventGameStateUpdate, room)
 		}
@@ -215,10 +237,22 @@ func handleWebSocketMessage(client *Client, gm *game.GameManager, msg *models.WS
 
 		// Check if all night actions are complete
 		if gm.CheckAllNightActionsComplete(client.RoomCode) {
-			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, map[string]interface{}{
+			nightResult, err := gm.MoveToNextPhase(client.RoomCode)
+			if err != nil {
+				sendError(client, err.Error())
+				return
+			}
+
+			room, _ = gm.GetRoom(client.RoomCode)
+			payload := map[string]interface{}{
 				"message": "All night actions completed",
 				"room":    room,
-			})
+			}
+			if nightResult != nil {
+				payload["nightResult"] = nightResult
+			}
+
+			broadcastToRoom(client.RoomCode, models.EventPhaseChanged, payload)
 		} else {
 			broadcastToRoom(client.RoomCode, models.EventNightAction, msg.Payload)
 		}

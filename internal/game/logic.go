@@ -8,9 +8,7 @@ import (
 
 // ProcessNightPhase processes all night actions
 func (gm *GameManager) ProcessNightPhase(code string) (*NightResult, error) {
-	gm.mu.Lock()
-	defer gm.mu.Unlock()
-
+	// Note: This function is called from MoveToNextPhase which already has the lock
 	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
@@ -19,6 +17,7 @@ func (gm *GameManager) ProcessNightPhase(code string) (*NightResult, error) {
 
 	result := &NightResult{
 		Killed:       "",
+		KilledName:   "",
 		Protected:    false,
 		ShamanSaved:  false,
 		ShamanVision: "",
@@ -44,11 +43,13 @@ func (gm *GameManager) ProcessNightPhase(code string) (*NightResult, error) {
 					// Shaman dies
 					victim.IsAlive = false
 					result.Killed = room.TigerTarget
+					result.KilledName = victim.Username
 				}
 			} else {
 				// Normal death
 				victim.IsAlive = false
 				result.Killed = room.TigerTarget
+				result.KilledName = victim.Username
 			}
 		}
 	}
@@ -283,6 +284,7 @@ func (gm *GameManager) CheckGameEnd(code string) (bool, string, error) {
 // NightResult represents the result of night actions
 type NightResult struct {
 	Killed       string `json:"killed"`       // ID of killed player
+	KilledName   string `json:"killedName"`   // Name of killed player
 	Protected    bool   `json:"protected"`    // Was target protected
 	ShamanSaved  bool   `json:"shamanSaved"`  // Shaman saved by luck
 	ShamanVision string `json:"shamanVision"` // Who shaman saw

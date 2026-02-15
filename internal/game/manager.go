@@ -330,18 +330,27 @@ func (gm *GameManager) StartNightPhase(code string) error {
 }
 
 // MoveToNextPhase transitions the game to the next phase
-func (gm *GameManager) MoveToNextPhase(code string) error {
+func (gm *GameManager) MoveToNextPhase(code string) (*NightResult, error) {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
 	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
-		return ErrRoomNotFound
+		return nil, ErrRoomNotFound
 	}
+
+	var nightResult *NightResult
 
 	switch room.Phase {
 	case models.PhaseNight:
+		// Process night actions before moving to day
+		result, err := gm.ProcessNightPhase(code)
+		if err != nil {
+			return nil, err
+		}
+		nightResult = result
+
 		// Night -> Day
 		room.Phase = models.PhaseDay
 		endTime := time.Now().Add(2 * time.Minute)
@@ -371,10 +380,10 @@ func (gm *GameManager) MoveToNextPhase(code string) error {
 		room.NightActionsCompleted = make(map[string]bool)
 
 	default:
-		return &GameError{"invalid phase transition"}
+		return nil, &GameError{"invalid phase transition"}
 	}
 
-	return nil
+	return nightResult, nil
 }
 
 // Custom errors
