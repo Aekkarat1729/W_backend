@@ -175,31 +175,6 @@ func (gm *GameManager) SetShamanVision(code, targetID string) error {
 	return nil
 }
 
-// HunterShoot allows hunter to shoot when dying
-func (gm *GameManager) HunterShoot(code, hunterID, targetID string) error {
-	gm.mu.Lock()
-	defer gm.mu.Unlock()
-
-	code = strings.ToUpper(code)
-	room, exists := gm.Rooms[code]
-	if !exists {
-		return ErrRoomNotFound
-	}
-
-	hunter := room.Players[hunterID]
-	if hunter == nil || hunter.Role != models.RoleHunter || hunter.IsAlive {
-		return &GameError{"invalid hunter shoot"}
-	}
-
-	target := room.Players[targetID]
-	if target == nil {
-		return &GameError{"target not found"}
-	}
-
-	target.IsAlive = false
-	return nil
-}
-
 // ProcessVoting processes voting results
 func (gm *GameManager) ProcessVoting(code string, votes map[string]string) (string, error) {
 	gm.mu.Lock()
@@ -242,43 +217,6 @@ func (gm *GameManager) ProcessVoting(code string, votes map[string]string) (stri
 
 	room.VoteResults = voteCount
 	return eliminated, nil
-}
-
-// CheckGameEnd checks if the game has ended
-func (gm *GameManager) CheckGameEnd(code string) (bool, string, error) {
-	gm.mu.RLock()
-	defer gm.mu.RUnlock()
-
-	code = strings.ToUpper(code)
-	room, exists := gm.Rooms[code]
-	if !exists {
-		return false, "", ErrRoomNotFound
-	}
-
-	tigerCount := 0
-	humanCount := 0
-
-	for _, player := range room.Players {
-		if player.IsAlive {
-			if player.Role == models.RoleAlphaTiger || player.Role == models.RoleTiger {
-				tigerCount++
-			} else {
-				humanCount++
-			}
-		}
-	}
-
-	// Tigers win if they equal or outnumber humans
-	if tigerCount >= humanCount && tigerCount > 0 {
-		return true, "tigers", nil
-	}
-
-	// Humans win if all tigers are dead
-	if tigerCount == 0 {
-		return true, "humans", nil
-	}
-
-	return false, "", nil
 }
 
 // NightResult represents the result of night actions
