@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: werewolf-backend
+    runtime: docker
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO # เปลี่ยนเป็น repo ของคุณ
+    rootDir: W_backend
+    region: singapore
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 8080
+    healthCheckPath: /health
