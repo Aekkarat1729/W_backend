@@ -1,6 +1,8 @@
 package game
 
 import (
+	"strings"
+
 	"github.com/werewolf-game/backend/internal/models"
 )
 
@@ -9,6 +11,7 @@ func (gm *GameManager) ProcessNightPhase(code string) (*NightResult, error) {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return nil, ErrRoomNotFound
@@ -86,6 +89,7 @@ func (gm *GameManager) SetAlphaTigerCurse(code, alphaTigerID, targetID string) e
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return ErrRoomNotFound
@@ -118,6 +122,7 @@ func (gm *GameManager) SetTigerTarget(code, targetID string) error {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return ErrRoomNotFound
@@ -132,6 +137,7 @@ func (gm *GameManager) SetHunterProtection(code, hunterID, targetID string) erro
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return ErrRoomNotFound
@@ -158,6 +164,7 @@ func (gm *GameManager) SetShamanVision(code, targetID string) error {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return ErrRoomNotFound
@@ -172,6 +179,7 @@ func (gm *GameManager) HunterShoot(code, hunterID, targetID string) error {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return ErrRoomNotFound
@@ -196,6 +204,7 @@ func (gm *GameManager) ProcessVoting(code string, votes map[string]string) (stri
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return "", ErrRoomNotFound
@@ -239,6 +248,7 @@ func (gm *GameManager) CheckGameEnd(code string) (bool, string, error) {
 	gm.mu.RLock()
 	defer gm.mu.RUnlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return false, "", ErrRoomNotFound

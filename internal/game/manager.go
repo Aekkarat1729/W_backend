@@ -2,6 +2,7 @@ package game
 
 import (
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,6 +57,7 @@ func (gm *GameManager) CreateRoom(hostID, hostUsername string) *models.GameRoom 
 func (gm *GameManager) GetRoom(code string) (*models.GameRoom, bool) {
 	gm.mu.RLock()
 	defer gm.mu.RUnlock()
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	return room, exists
 }
@@ -65,6 +67,7 @@ func (gm *GameManager) JoinRoom(code, playerID, username string) (*models.GameRo
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return nil, ErrRoomNotFound
@@ -95,6 +98,7 @@ func (gm *GameManager) RemovePlayer(code, playerID string) error {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return ErrRoomNotFound
@@ -115,6 +119,7 @@ func (gm *GameManager) StartGame(code string) error {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 
+	code = strings.ToUpper(code)
 	room, exists := gm.Rooms[code]
 	if !exists {
 		return ErrRoomNotFound
@@ -187,7 +192,8 @@ func assignRoles(room *models.GameRoom) {
 
 // generateRoomCode generates a random 6-character room code
 func generateRoomCode() string {
-	return uuid.New().String()[:6]
+	code := uuid.New().String()[:6]
+	return strings.ToUpper(code)
 }
 
 // Custom errors
